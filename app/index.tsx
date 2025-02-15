@@ -2,26 +2,58 @@ import { MaterialCommunityIcons } from "@expo/vector-icons"
 import Slider from "@react-native-community/slider"
 import * as Speech from "expo-speech"
 import { useColorScheme } from "nativewind"
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { Pressable, StyleSheet, Switch, Text, View } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { Picker } from "@react-native-picker/picker"
+import { PickerM } from "@/components/PickerM"
 
 export default function LaHoraEs() {
     const [isActive, setIsActive] = useState(false)
-    const [interval, setInterval] = useState<number>(15) // minutes
+    const [interval, setIntervals] = useState(15) // minutes
     const { colorScheme, setColorScheme } = useColorScheme()
     const [lastSpoken, setLastSpoken] = useState("")
+    const [timer, setTimer] = useState("")
+    const [timer2, setTimer2] = useState("")
+    const doce = useRef(false)
+
+    const formatTime = useCallback(() => {
+        const now = new Date()
+        let hours = now.getHours()
+        if (doce.current) {
+            setTimer2(hours > 12 ? "p. m." : "a. m.")
+            hours = hours > 12 ? hours - 12 : hours
+        }
+        let minutes: string | number = now.getMinutes()
+        if (minutes < 10) {
+            minutes = `0${minutes}`
+        }
+        const relog = `${hours}:${minutes}`
+
+        setTimer(relog)
+    }, [doce])
+
     const speakTime = () => {
         const now = new Date()
-        const hours = now.getHours()
+
+        let hours = now.getHours()
+        if (hours > 12 && doce.current) {
+            hours = hours - 12
+        }
         const minutes = now.getMinutes()
 
         // Construct Spanish time message
         let timeMessage = "La hora es "
+        Speech.speak(timeMessage, {
+            language: "es-ES",
+            pitch: 1,
+            rate: 0.8,
+        })
+
         if (hours === 1) {
-            timeMessage += "la una"
+            timeMessage = "la una"
         } else {
-            timeMessage += `las ${hours}`
+            timeMessage = `las ${hours}`
         }
 
         if (minutes === 0) {
@@ -45,28 +77,35 @@ export default function LaHoraEs() {
         setLastSpoken(timeMessage)
     }
 
-    useEffect(() => {
-        let timer
-        if (isActive) {
-            speakTime() // Speak immediately when activated
-            timer = setInterval(
-                () => {
-                    speakTime()
-                    console.log("timer")
-                },
-                interval * 60 * 1000
-            ) // Convert minutes to milliseconds
-        }
-        return () => clearInterval(timer)
-    }, [isActive, interval])
+    // useEffect(() => {
+    //     let timer
+    //     if (isActive) {
+    //         speakTime() // Speak immediately when activated
+    //         timer = setInterval(
+    //             () => {
+    //                 speakTime()
+    //                 console.log("timer")
+    //             },
+    //             interval * 60 * 1000
+    //         ) // Convert minutes to milliseconds
+    //     }
+    //     return () => clearInterval(timer)
+    // }, [isActive, interval])
 
-    const formatTime = () => {
-        const now = new Date()
-        return now.toLocaleTimeString("es-ES", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: false,
-        })
+    useEffect(() => {
+        const timer = setInterval(() => {
+            formatTime()
+        }, 1000) // Convert minutes to milliseconds
+        return () => clearInterval(timer)
+    }, [])
+
+    const onIntervalesChange = useCallback((value: number) => {
+        setIntervals(value)
+    }, [])
+
+    const onDoceChange = (value: boolean) => {
+        doce.current = value
+        formatTime()
     }
 
     return (
@@ -89,9 +128,16 @@ export default function LaHoraEs() {
                     size={60}
                     color="#4A90E2"
                 />
-                <Text className="text my-3 py-5 text-7xl font-bold">
-                    {formatTime()}
-                </Text>
+                <View className="flex flex-row items-baseline justify-center">
+                    <Text className="text my-3 py-5 text-7xl font-bold">
+                        {timer}
+                    </Text>
+                    {doce.current && (
+                        <Text className="text my-3 py-5 text-xl font-bold">
+                            {timer2}
+                        </Text>
+                    )}
+                </View>
                 <Text className="text my-3 py-5 text-xl font-bold">
                     {lastSpoken}
                 </Text>
@@ -107,24 +153,23 @@ export default function LaHoraEs() {
                         thumbColor={isActive ? "#fff" : "#f4f3f4"}
                     />
                 </View>
-
-                <View style={styles.sliderContainer}>
-                    <Text className="text">Intervalo: {interval} minutos</Text>
-                    <Slider
-                        style={styles.slider}
-                        minimumValue={1}
-                        maximumValue={60}
-                        step={1}
-                        value={interval}
-                        onValueChange={setInterval}
-                        minimumTrackTintColor="#4A90E2"
-                        maximumTrackTintColor="#d3d3d3"
-                        thumbTintColor="#4A90E2"
+                <View style={styles.switchContainer}>
+                    <Text className="text text-base">12 horas</Text>
+                    <Switch
+                        value={doce.current}
+                        onValueChange={onDoceChange}
+                        trackColor={{ false: "#767577", true: "#4A90E2" }}
+                        thumbColor={doce ? "#fff" : "#f4f3f4"}
                     />
                 </View>
 
+                <View style={styles.sliderContainer}>
+                    <Text className="text">Intervalo: {interval} minutos</Text>
+                    <PickerM />
+                </View>
+
                 <Pressable
-                    className="text m-2 flex flex-row items-center justify-center rounded-full bg-white p-6 shadow-lg shadow-slate-950 dark:bg-slate-600 dark:shadow-gray-200"
+                    className="text m-2 flex flex-row items-center justify-center rounded-full border-black bg-white p-6 shadow-lg shadow-slate-950 dark:bg-slate-600 dark:shadow-gray-200"
                     onPress={speakTime}
                 >
                     <MaterialCommunityIcons
@@ -193,3 +238,169 @@ const styles = StyleSheet.create({
         marginLeft: 8,
     },
 })
+
+// import { ThemedText } from "@/components/ThemedText"
+// import { ThemedView } from "@/components/ThemedView"
+// import { useNotification } from "@/context/NotificationContext"
+// import * as Notifications from "expo-notifications"
+// import { Platform, Pressable, StatusBar } from "react-native"
+// import { SafeAreaView } from "react-native-safe-area-context"
+
+// Notifications.setNotificationHandler({
+//     handleNotification: async () => ({
+//         shouldShowAlert: true,
+//         shouldPlaySound: true,
+//         shouldSetBadge: false,
+//     }),
+// })
+
+// async function sendPushNotification(expoPushToken: string) {
+//     const message = {
+//         to: expoPushToken,
+//         sound: "default",
+//         title: "Original Title",
+//         body: "And here is the body!",
+//         data: { someData: "goes here" },
+//     }
+
+//     await fetch("https://exp.host/--/api/v2/push/send", {
+//         method: "POST",
+//         headers: {
+//             Accept: "application/json",
+//             "Accept-encoding": "gzip, deflate",
+//             "Content-Type": "application/json",
+//         },
+//         body: JSON.stringify(message),
+//     })
+// }
+
+// export default function App() {
+//     const { expoPushToken, notification, error } = useNotification()
+//     if (error) {
+//         return <ThemedText type="title">{error.message}</ThemedText>
+//     }
+//     console.log(JSON.stringify(notification, null, 2))
+//     return (
+//         <ThemedView
+//             style={{
+//                 flex: 1,
+//                 padding: 10,
+//                 paddingTop:
+//                     Platform.OS == "android" ? StatusBar.currentHeight : 10,
+//             }}
+//         >
+//             <SafeAreaView style={{ flex: 1 }}>
+//                 <ThemedText type="subtitle">Updates Demo 5</ThemedText>
+//                 {/* <ThemedText>{runTypeMessage}</ThemedText>
+//                 <Button
+//                     onPress={() => Updates.checkForUpdateAsync()}
+//                     title="Check manually for updates"
+//                 />
+//                 {showDownloadButton ? (
+//                     <Button
+//                         onPress={() => Updates.fetchUpdateAsync()}
+//                         title="Download and run update"
+//                     />
+//                 ) : null} */}
+//                 <ThemedText type="subtitle" style={{ color: "red" }}>
+//                     Your push token:
+//                 </ThemedText>
+//                 <ThemedText>{expoPushToken}</ThemedText>
+//                 <ThemedText type="subtitle">Latest notification:</ThemedText>
+//                 <ThemedText>{notification?.request.content.title}</ThemedText>
+//                 <ThemedText>
+//                     {JSON.stringify(
+//                         notification?.request.content.data,
+//                         null,
+//                         2
+//                     )}
+//                 </ThemedText>
+//                 <Pressable onPress={schedulePushNotification}>
+//                     <ThemedText>Press to schedule a notification</ThemedText>
+//                 </Pressable>
+//             </SafeAreaView>
+//         </ThemedView>
+//     )
+// }
+
+// async function schedulePushNotification() {
+//     const indentificer = await Notifications.scheduleNotificationAsync({
+//         content: {
+//             title: "Alarma activa",
+//             body: "Sonando...",
+//             autoDismiss: false,
+//             sticky: true, // Propiedad experimental (ver nota abajo)
+//             sound: "alarm_sound.wav",
+//             data: { type: "alarm" },
+//             categoryIdentifier: "alarm",
+//             attachments: [],
+//         },
+
+//         trigger: null,
+//     })
+
+//     await Notifications.cancelScheduledNotificationAsync(indentificer)
+// }
+
+// import React from "react"
+// import { Button, View, StyleSheet, Text, StatusBar } from "react-native"
+// import * as TaskManager from "expo-task-manager"
+// import * as Location from "expo-location"
+
+// const LOCATION_TASK_NAME = "background-location-task"
+
+// const requestPermissions = async () => {
+//     const { status: foregroundStatus } =
+//         await Location.requestForegroundPermissionsAsync()
+//     if (foregroundStatus === "granted") {
+//         const { status: backgroundStatus } =
+//             await Location.requestBackgroundPermissionsAsync()
+//         if (backgroundStatus === "granted") {
+//             await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+//                 accuracy: Location.Accuracy.Balanced,
+//             })
+//         }
+//     }
+// }
+
+// export default function App() {
+
+//     return (
+//         <View style={styles.container}>
+//             <PermissionsButton />
+//             <Text>Open up App.tsx to start working on your app!</Text>
+//             <StatusBar animated barStyle="dark-content" />
+//             <Text></Text>
+//         </View>
+//     )
+// }
+
+// const PermissionsButton = () => (
+//     <View style={styles.container}>
+//         <Button
+//             onPress={requestPermissions}
+//             title="Enable background location"
+//         />
+//     </View>
+// )
+
+// TaskManager.defineTask(LOCATION_TASK_NAME, ({ data, error }) => {
+//     if (error) {
+//         // Error occurred - check `error.message` for more details.
+//         console.log(error.message)
+//         return
+//     }
+//     if (data) {
+//         const { locations } = data
+//         // do something with the locations captured in the background
+//         console.log(locations)
+//     }
+// })
+
+// const styles = StyleSheet.create({
+//     container: {
+//         flex: 1,
+//         alignItems: "center",
+//         justifyContent: "center",
+//     },
+// })
